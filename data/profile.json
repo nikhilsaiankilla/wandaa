@@ -1,0 +1,72 @@
+{
+  "owner": {
+    "name": "Nikhil Sai Ankilla",
+    "handle": "itzznikhilsai",
+    "role": "Full-stack developer and indie founder",
+    "location": "Hyderabad, India",
+    "timezone": "Asia/Calcutta",
+    "education": "B.Tech in Data Science, class of 2025"
+  },
+  "links": {
+    "portfolio": "https://nikhilsai.in",
+    "github": "https://github.com/nikhilsaiankilla",
+    "x": "https://x.com/itzznikhilsai"
+  },
+  "stack": {
+    "frontend": ["Next.js", "TypeScript"],
+    "backend": ["Node.js"],
+    "data": ["PostgreSQL", "Drizzle ORM", "Supabase", "Redis"],
+    "ai": ["OpenAI", "Anthropic", "Gemini"]
+  },
+  "products": [
+    {
+      "slug": "tealsub",
+      "name": "Tealsub",
+      "url": "https://tealsub.com",
+      "summary": "AI chatbot SaaS platform"
+    },
+    {
+      "slug": "mintconvert",
+      "name": "MintConvert",
+      "url": "https://mintconvert.com",
+      "summary": "Bank statement PDF converter with multi-format output"
+    },
+    {
+      "slug": "simpledevtools",
+      "name": "SimpleDevTools",
+      "url": "https://simpledevtools.org",
+      "summary": "Collection of browser-based developer utilities"
+    },
+    {
+      "slug": "hue-clip",
+      "name": "Hue Clip",
+      "url": "https://tryhueclip.com",
+      "summary": "SaaS with a Chrome extension that clips web inspiration into a dashboard (earlier called Moodboard)"
+    },
+    {
+      "slug": "rabbitai-reviewer",
+      "name": "rabbitai-reviewer",
+      "summary": "Open-source AI pull request reviewer published on PyPI"
+    }
+  ],
+  "otherProjects": [
+    {
+      "slug": "cenna",
+      "name": "Cenna IT Helpdesk Sandbox Demo",
+      "summary": "Interactive demo showing an agent trace with real AI calls and a cost readout"
+    },
+    {
+      "slug": "hyderabad-startup-map",
+      "name": "Hyderabad Startup Map",
+      "summary": "Interactive map and grid directory of Hyderabad startups"
+    }
+  ],
+  "assistant": {
+    "name": "Wandaa",
+    "approvalRequiredFor": ["x_post"],
+    "xVoice": {
+      "buildsInPublic": true,
+      "notes": []
+    }
+  }
+}

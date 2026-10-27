@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Local PostgreSQL
+
+Add the database variables from `.env.example` to `.env` without replacing the Telegram settings already there. Start PostgreSQL with `docker compose up -d postgres`, then apply the schema with `npm run db:migrate`.
+
+`db/index.ts` exports the server-only `getDb()` connection. Edit `db/schema.ts`, generate a migration with `npm run db:generate`, and apply it with `npm run db:migrate`.
+
+## Telegram natural language
+
+Set `OPENAI_API_KEY` in `.env` to enable plain-language actions; `OPENAI_MODEL` defaults to `gpt-4o-mini`. Slash commands continue to work without the key. Webhook activity and Telegram delivery failures are written to the server logs without logging message contents.

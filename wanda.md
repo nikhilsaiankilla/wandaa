@@ -129,3 +129,20 @@ Every integration follows the same shape: something it can **read**, something i
 - What tone should Wandaa have: terse and efficient, or friendly and chatty?
 - What time should the morning plan and evening check-in arrive?
 - Which integrations matter most after payments?
+
+
+$BOT_TOKEN = "8929230132:AAFVxG_iwQDwpxwQcja3oQ1mIZKZ2I3EJ4Y"
+$WEBHOOK_SECRET = "AAFVxG_iwQDwpxwQcja3oQ1mIZKZ2I3EJ4Y"
+$NGROK_URL = "https://triapsidal-jalisa-cylindrical.ngrok-free.dev"
+
+$body = @{
+    url = "$NGROK_URL/api/telegram/webhook"
+    secret_token = $WEBHOOK_SECRET
+    allowed_updates = @("message")
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+    -Uri "https://api.telegram.org/bot$($BOT_TOKEN)/setWebhook" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body

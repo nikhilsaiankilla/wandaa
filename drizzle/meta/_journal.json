@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793007386563,
+      "tag": "0000_hot_captain_america",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793082173683,
+      "tag": "0001_rainy_dreadnoughts",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793117309645,
+      "tag": "0002_dashboard_analytics",
+      "breakpoints": true
+    }
+  ]
+}
