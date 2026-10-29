@@ -451,31 +451,34 @@ function Heatmap({
           </span>
         ))}
       </div>
-      <div className="flex gap-[3px] overflow-x-auto">
-        {habit.weeks.map((week, w) => (
-          <div key={w} className="grid grid-rows-7 gap-[3px]">
-            {week.map((state, d) => {
-              const date = cellDate(start, w * 7 + d);
-              return (
-                <div
-                  key={d}
-                  title={
-                    state === 2
-                      ? undefined
-                      : `${date}: ${state === 1 ? "done" : "missed"}`
-                  }
-                  className={`size-3.5 rounded-[3px] ${
-                    state === 1
-                      ? "bg-primary"
-                      : state === 0
-                        ? "bg-muted"
-                        : "bg-transparent"
-                  } ${date === today ? "ring-1 ring-foreground/40" : ""}`}
-                />
-              );
+      <div className="min-w-0 overflow-x-auto pb-1">
+        <div className="w-max">
+          <div className="mb-1 flex gap-[3px] text-[10px] leading-none text-muted-foreground">
+            {habit.weeks.map((_, w) => {
+              const date = new Date(`${cellDate(start, w * 7)}T00:00:00Z`);
+              const month = date.getUTCMonth();
+              const previous = w ? new Date(`${cellDate(start, (w - 1) * 7)}T00:00:00Z`).getUTCMonth() : -1;
+              const label = month !== previous ? date.toLocaleDateString("en", { month: "short", timeZone: "UTC" }) : "";
+              return <span key={w} className="w-3.5 shrink-0">{label}</span>;
             })}
           </div>
-        ))}
+          <div className="flex gap-[3px]">
+            {habit.weeks.map((week, w) => (
+              <div key={w} className="grid grid-rows-7 gap-[3px]">
+                {week.map((state, d) => {
+                  const date = cellDate(start, w * 7 + d);
+                  return (
+                    <div
+                      key={d}
+                      title={state === 2 ? undefined : `${date}: ${state === 1 ? "done" : "missed"}`}
+                      className={`size-3.5 rounded-[3px] ${state === 1 ? "bg-primary" : state === 0 ? "bg-muted" : "bg-transparent"} ${date === today ? "ring-1 ring-foreground/40" : ""}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -488,7 +491,7 @@ function HabitsCard({ data }: { data: DashboardAnalytics }) {
       <CardHeader>
         <CardTitle>Habit consistency</CardTitle>
         <CardDescription>
-          Last 12 weeks, one square per day. Filled means done.
+          Past year, one square per day. Filled means done.
         </CardDescription>
       </CardHeader>
       <CardContent>

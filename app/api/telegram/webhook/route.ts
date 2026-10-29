@@ -319,7 +319,7 @@ export async function POST(request: Request) {
         : undefined;
     console.error("Telegram webhook failed", {
       updateId,
-      reason: error instanceof Error ? error.name : "UnknownError",
+      reason: error instanceof Error ? error.message : "UnknownError",
       code,
     });
     return Response.json({ ok: false }, { status: 500 });

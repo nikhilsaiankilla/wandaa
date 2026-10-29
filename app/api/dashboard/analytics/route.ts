@@ -88,7 +88,7 @@ export async function getDashboardAnalytics(
 
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
   const monday = addDays(today, -((dow + 6) % 7));
-  const gridStart = addDays(monday, -77); // 12 week columns, current week last
+  const gridStart = addDays(monday, -364); // 53 week columns, current week last
 
   const logsStart = addDays(today, -(2 * days - 1));
 
@@ -229,7 +229,7 @@ export async function getDashboardAnalytics(
 
     const weeks: CellState[][] = [];
     let weeksHit = 0;
-    for (let w = 0; w < 12; w++) {
+    for (let w = 0; w < 53; w++) {
       const col: CellState[] = [];
       let done = 0;
       for (let d = 0; d < 7; d++) {
@@ -241,7 +241,7 @@ export async function getDashboardAnalytics(
         } else col.push(0);
       }
       weeks.push(col);
-      if (w < 11 && done >= h.targetPerWeek) weeksHit++;
+      if (w < 52 && done >= h.targetPerWeek) weeksHit++;
     }
 
     let streak = 0;
@@ -258,7 +258,7 @@ export async function getDashboardAnalytics(
       doneLast7: countIn(set, thisWeek),
       streak,
       weeksHit,
-      weeksTotal: 11,
+      weeksTotal: 52,
       weeks,
     };
   });
