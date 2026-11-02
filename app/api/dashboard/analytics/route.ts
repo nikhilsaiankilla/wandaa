@@ -613,7 +613,7 @@ export async function GET(request: Request) {
     return Response.json(await getDashboardAnalytics(range), { headers });
   } catch (error) {
     console.error("Dashboard analytics failed", {
-      reason: error instanceof Error ? error.name : "UnknownError",
+      reason: error instanceof Error ? error.message : "UnknownError",
     });
     return Response.json(
       { error: "Could not load dashboard data." },
