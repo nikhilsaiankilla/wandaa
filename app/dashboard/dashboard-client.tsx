@@ -1,6 +1,13 @@
+// components/dashboard-client.tsx
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   AlertCircle,
   ArrowDownRight,
@@ -61,6 +68,12 @@ import type {
   VerdictTone,
 } from "@/lib/types";
 
+// The dashboard is served by two APIs so each section can load on its own:
+//  - /api/dashboard/analytics -> everything except the habit grid
+//  - /api/dashboard/habits    -> the 365-day habit grid
+type AnalyticsData = Omit<DashboardAnalytics, "habits">;
+type HabitsData = DashboardAnalytics["habits"];
+
 type TaskFilter = "all" | "pending" | "done";
 
 const taskFilters: { value: TaskFilter; label: string }[] = [
@@ -79,7 +92,8 @@ const toneStyles: Record<
   { badge: string; border: string; glow: string }
 > = {
   great: {
-    badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    badge:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
     border: "border-l-emerald-500",
     glow: "from-emerald-500/5 to-transparent",
   },
@@ -89,7 +103,8 @@ const toneStyles: Record<
     glow: "from-sky-500/5 to-transparent",
   },
   mixed: {
-    badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    badge:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
     border: "border-l-amber-500",
     glow: "from-amber-500/5 to-transparent",
   },
@@ -147,7 +162,7 @@ function Delta({
 
 // ---------- verdict ----------
 
-function VerdictCard({ data }: { data: DashboardAnalytics }) {
+function VerdictCard({ data }: { data: AnalyticsData }) {
   const { verdict } = data;
   const tone = toneStyles[verdict.tone] ?? toneStyles.empty;
 
@@ -175,7 +190,9 @@ function VerdictCard({ data }: { data: DashboardAnalytics }) {
               <span className="font-serif text-6xl font-normal tracking-tight tabular-nums text-foreground lg:text-7xl">
                 {verdict.score ?? "–"}
               </span>
-              <span className="text-sm font-medium text-muted-foreground">/ 100</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                / 100
+              </span>
               <div className="ml-2 flex items-center gap-1.5">
                 <Delta value={verdict.deltaVsLastWeek} />
                 {verdict.deltaVsLastWeek !== null && (
@@ -229,8 +246,8 @@ function VerdictCard({ data }: { data: DashboardAnalytics }) {
           </div>
 
           <p className="border-t pt-3 text-[11px] leading-relaxed text-muted-foreground/80">
-            Weighted balance: Sleep (30%), Tasks (30%), Habits (25%), Energy (15%).
-            Unlogged vectors omitted dynamically.
+            Weighted balance: Sleep (30%), Tasks (30%), Habits (25%), Energy
+            (15%). Unlogged vectors omitted dynamically.
           </p>
         </div>
       </CardContent>
@@ -257,7 +274,9 @@ function TaskRow({ task }: { task: TaskItem }) {
 
   return (
     <li className="group flex items-start gap-3 py-3 transition-colors hover:bg-muted/30">
-      <Icon className={`mt-0.5 size-4 shrink-0 transition-transform ${iconStyle}`} />
+      <Icon
+        className={`mt-0.5 size-4 shrink-0 transition-transform ${iconStyle}`}
+      />
       <div className="min-w-0 flex-1 space-y-0.5">
         <p
           className={`text-sm leading-snug transition-colors ${
@@ -305,7 +324,7 @@ function TaskRow({ task }: { task: TaskItem }) {
   );
 }
 
-function TasksCard({ data }: { data: DashboardAnalytics }) {
+function TasksCard({ data }: { data: AnalyticsData }) {
   const { today } = data;
   const [filter, setFilter] = useState<TaskFilter>("all");
   const pct = today.total ? Math.round((today.done / today.total) * 100) : 0;
@@ -324,7 +343,9 @@ function TasksCard({ data }: { data: DashboardAnalytics }) {
     <Card className="flex flex-col border shadow-sm">
       <CardHeader className="border-b pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-medium">Daily Objectives</CardTitle>
+          <CardTitle className="text-base font-medium">
+            Daily Objectives
+          </CardTitle>
           <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">{today.done}</span>
             <span>/</span>
@@ -383,7 +404,9 @@ function TasksCard({ data }: { data: DashboardAnalytics }) {
           </div>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
-            <p className="text-xs text-muted-foreground">No matching tasks found.</p>
+            <p className="text-xs text-muted-foreground">
+              No matching tasks found.
+            </p>
           </div>
         )}
       </CardContent>
@@ -422,12 +445,14 @@ function Stat({
       <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-foreground">
         {value}
       </p>
-      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground/80">{sub}</p>}
+      {sub && (
+        <p className="mt-0.5 text-[11px] text-muted-foreground/80">{sub}</p>
+      )}
     </div>
   );
 }
 
-function SleepCard({ data }: { data: DashboardAnalytics }) {
+function SleepCard({ data }: { data: AnalyticsData }) {
   const { sleep } = data;
   const status = sleepStatus[sleep.status];
   const diff =
@@ -449,12 +474,17 @@ function SleepCard({ data }: { data: DashboardAnalytics }) {
       <CardHeader className="border-b pb-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base font-medium">Sleep Architecture</CardTitle>
+            <CardTitle className="text-base font-medium">
+              Sleep Architecture
+            </CardTitle>
             <CardDescription className="text-xs">
               Daily sleep volume indexed against {sleep.target}h target
             </CardDescription>
           </div>
-          <Badge variant="outline" className={`font-mono text-xs ${status.style}`}>
+          <Badge
+            variant="outline"
+            className={`font-mono text-xs ${status.style}`}
+          >
             {status.label}
           </Badge>
         </div>
@@ -463,7 +493,9 @@ function SleepCard({ data }: { data: DashboardAnalytics }) {
       <CardContent className="flex flex-1 flex-col space-y-4 pt-4">
         {sleep.loggedNights === 0 ? (
           <div className="flex flex-1 items-center justify-center py-10">
-            <p className="text-xs text-muted-foreground">No sleep data available.</p>
+            <p className="text-xs text-muted-foreground">
+              No sleep data available.
+            </p>
           </div>
         ) : (
           <>
@@ -581,11 +613,16 @@ function Heatmap({
             const date = new Date(`${cellDate(start, w * 7)}T00:00:00Z`);
             const month = date.getUTCMonth();
             const previous = w
-              ? new Date(`${cellDate(start, (w - 1) * 7)}T00:00:00Z`).getUTCMonth()
+              ? new Date(
+                  `${cellDate(start, (w - 1) * 7)}T00:00:00Z`,
+                ).getUTCMonth()
               : -1;
             const label =
               month !== previous
-                ? date.toLocaleDateString("en", { month: "short", timeZone: "UTC" })
+                ? date.toLocaleDateString("en", {
+                    month: "short",
+                    timeZone: "UTC",
+                  })
                 : "";
             return (
               <span key={w} className="w-3 shrink-0 text-left">
@@ -625,14 +662,15 @@ function Heatmap({
   );
 }
 
-function HabitsCard({ data }: { data: DashboardAnalytics }) {
-  const { habits } = data;
+function HabitsCard({ habits }: { habits: HabitsData }) {
   return (
     <Card className="border shadow-sm">
       <CardHeader className="border-b pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-medium">Habit Consistency</CardTitle>
+            <CardTitle className="text-base font-medium">
+              Habit Consistency
+            </CardTitle>
             <CardDescription className="text-xs">
               Annual completion telemetry per routine
             </CardDescription>
@@ -653,7 +691,9 @@ function HabitsCard({ data }: { data: DashboardAnalytics }) {
                 className="grid gap-4 py-4 first:pt-0 last:pb-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center"
               >
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium text-foreground">{h.name}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {h.name}
+                  </p>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge
                       variant="outline"
@@ -712,13 +752,7 @@ async function submitGoal(
   }
 }
 
-function GoalRow({
-  goal,
-  onSaved,
-}: {
-  goal: GoalItem;
-  onSaved: () => void;
-}) {
+function GoalRow({ goal, onSaved }: { goal: GoalItem; onSaved: () => void }) {
   const [currentValue, setCurrentValue] = useState(String(goal.currentValue));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -751,7 +785,9 @@ function GoalRow({
     <li className="space-y-3 py-4 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <span className="text-sm font-medium text-foreground">{goal.title}</span>
+          <span className="text-sm font-medium text-foreground">
+            {goal.title}
+          </span>
           <span className="ml-2 font-mono text-xs tabular-nums text-muted-foreground">
             {goal.currentValue.toLocaleString()} /{" "}
             {goal.targetValue?.toLocaleString() ?? "∞"} {goal.unit}
@@ -823,7 +859,7 @@ function GoalsCard({
   data,
   onSaved,
 }: {
-  data: DashboardAnalytics;
+  data: AnalyticsData;
   onSaved: () => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -854,7 +890,9 @@ function GoalsCard({
     <Card className="border shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
         <div>
-          <CardTitle className="text-base font-medium">Financial Targets</CardTitle>
+          <CardTitle className="text-base font-medium">
+            Financial Targets
+          </CardTitle>
           <CardDescription className="text-xs">
             Capital milestones and purchasing allocations
           </CardDescription>
@@ -943,7 +981,7 @@ const trendConfig = {
   done: { label: "Output", color: "var(--foreground)" },
 } satisfies ChartConfig;
 
-function TrendCard({ data }: { data: DashboardAnalytics }) {
+function TrendCard({ data }: { data: AnalyticsData }) {
   const total = data.taskTrend.reduce((s, p) => s + p.done, 0);
 
   return (
@@ -997,13 +1035,23 @@ function TrendCard({ data }: { data: DashboardAnalytics }) {
   );
 }
 
-// root page
-export default function DashboardClient() {
-  const [range, setRange] = useState<DashboardRange>("7d");
-  const [data, setData] = useState<DashboardAnalytics | null>(null);
+// ---------- data loading ----------
+// One hook per API, so every section loads, fails and retries on its own.
+
+const REQUEST_TIMEOUT_MS = 25_000;
+
+type ApiState<T> = {
+  data: T | null;
+  error: string | null;
+  loading: boolean;
+  reload: () => void;
+};
+
+function useApi<T>(url: string, label: string): ApiState<T> {
+  const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refresh, setRefresh] = useState(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1011,21 +1059,21 @@ export default function DashboardClient() {
     const timeout = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, 25_000);
+    }, REQUEST_TIMEOUT_MS);
+
     setLoading(true);
-    fetch(`/api/dashboard/analytics?range=${range}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
+    setError(null);
+    fetch(url, { cache: "no-store", signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Request failed");
-        return res.json() as Promise<DashboardAnalytics>;
+        return res.json() as Promise<T>;
       })
       .then((result) => {
         setData(result);
         setError(null);
       })
       .catch((err: unknown) => {
+        // aborted because the URL changed or the component unmounted
         if (
           err instanceof DOMException &&
           err.name === "AbortError" &&
@@ -1034,21 +1082,101 @@ export default function DashboardClient() {
           return;
         setError(
           timedOut
-            ? "Dashboard data took too long to load. Check the database connection, then try again."
-            : "Could not load your dashboard. Try refreshing.",
+            ? `${label} took too long to load. Check the database connection, then try again.`
+            : `Could not load ${label.toLowerCase()}. Try again.`,
         );
       })
       .finally(() => {
         window.clearTimeout(timeout);
         if (!controller.signal.aborted || timedOut) setLoading(false);
       });
+
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [range, refresh]);
+  }, [url, label, tick]);
 
-  const reload = useCallback(() => setRefresh((n) => n + 1), []);
+  const reload = useCallback(() => setTick((n) => n + 1), []);
+
+  return { data, error, loading, reload };
+}
+
+function ErrorCard({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Card className="border-rose-500/20 bg-rose-500/5">
+      <CardContent className="flex items-center justify-between p-4">
+        <p className="text-xs text-rose-600 dark:text-rose-400">{message}</p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onRetry}
+          className="h-7 text-xs"
+        >
+          Retry
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Shows a skeleton until its own API answers, then renders immediately,
+// without waiting for any other section.
+function Section<T>({
+  state,
+  skeleton,
+  hideError = false,
+  children,
+}: {
+  state: ApiState<T>;
+  skeleton: ReactNode;
+  /** several sections share one API: show its error card only once */
+  hideError?: boolean;
+  children: (data: T) => ReactNode;
+}) {
+  if (!state.data) {
+    if (state.error) {
+      return hideError ? null : (
+        <ErrorCard message={state.error} onRetry={state.reload} />
+      );
+    }
+    return <>{skeleton}</>;
+  }
+  return (
+    <div
+      className={`transition-opacity duration-200 ${
+        state.loading ? "opacity-60" : "opacity-100"
+      }`}
+    >
+      {children(state.data)}
+    </div>
+  );
+}
+
+// root page
+export default function DashboardClient() {
+  const [range, setRange] = useState<DashboardRange>("7d");
+
+  const analytics = useApi<AnalyticsData>(
+    `/api/dashboard/analytics?range=${range}`,
+    "Dashboard data",
+  );
+  const habits = useApi<HabitsData>("/api/dashboard/habits", "Habit data");
+
+  const reloadAnalytics = analytics.reload;
+  const reloadHabits = habits.reload;
+  const reloadAll = useCallback(() => {
+    reloadAnalytics();
+    reloadHabits();
+  }, [reloadAnalytics, reloadHabits]);
+
+  const syncing = analytics.loading || habits.loading;
 
   return (
     <main className="min-h-screen bg-background font-sans text-foreground antialiased">
@@ -1060,12 +1188,13 @@ export default function DashboardClient() {
             </h1>
             <p className="text-xs text-muted-foreground">
               Synthesized personal ops telemetry: sleep, tasks, and habits.
-              {data && (
+              {analytics.data && (
                 <span className="ml-1 font-mono">
                   Synced{" "}
-                  {new Date(data.generatedAt).toLocaleTimeString("en", {
-                    timeStyle: "short",
-                  })}
+                  {new Date(analytics.data.generatedAt).toLocaleTimeString(
+                    "en",
+                    { timeStyle: "short" },
+                  )}
                 </span>
               )}
             </p>
@@ -1091,54 +1220,69 @@ export default function DashboardClient() {
             <Button
               variant="outline"
               size="sm"
-              onClick={reload}
-              disabled={loading}
+              onClick={reloadAll}
+              disabled={syncing}
               className="h-8 gap-1.5 text-xs font-medium"
             >
               <RefreshCw
-                className={`size-3.5 ${loading ? "animate-spin" : ""}`}
+                className={`size-3.5 ${syncing ? "animate-spin" : ""}`}
               />
               <span className="hidden sm:inline">Sync</span>
             </Button>
           </div>
         </header>
 
-        {error && !data ? (
-          <Card className="border-rose-500/20 bg-rose-500/5">
-            <CardContent className="flex items-center justify-between p-4">
-              <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
-              <Button size="sm" variant="outline" onClick={reload} className="h-7 text-xs">
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
-        ) : !data ? (
-          <div className="space-y-6">
-            <Skeleton className="h-56 w-full rounded-xl" />
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Skeleton className="h-80 rounded-xl" />
-              <Skeleton className="h-80 rounded-xl" />
-            </div>
-            <Skeleton className="h-44 w-full rounded-xl" />
-          </div>
-        ) : (
-          <div
-            className={`space-y-6 transition-opacity duration-200 ${
-              loading ? "opacity-60" : "opacity-100"
-            }`}
+        <div className="space-y-6">
+          {/* ---- sections backed by /api/dashboard/analytics ---- */}
+          <Section
+            state={analytics}
+            skeleton={<Skeleton className="h-56 w-full rounded-xl" />}
           >
-            <VerdictCard data={data} />
+            {(data) => <VerdictCard data={data} />}
+          </Section>
 
-            <div className="grid items-start gap-6 lg:grid-cols-2">
-              <TasksCard data={data} />
-              <SleepCard data={data} />
-            </div>
+          <Section
+            state={analytics}
+            hideError
+            skeleton={
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Skeleton className="h-80 rounded-xl" />
+                <Skeleton className="h-80 rounded-xl" />
+              </div>
+            }
+          >
+            {(data) => (
+              <div className="grid items-start gap-6 lg:grid-cols-2">
+                <TasksCard data={data} />
+                <SleepCard data={data} />
+              </div>
+            )}
+          </Section>
 
-            <GoalsCard data={data} onSaved={reload} />
-            <HabitsCard data={data} />
-            <TrendCard data={data} />
-          </div>
-        )}
+          <Section
+            state={analytics}
+            hideError
+            skeleton={<Skeleton className="h-44 w-full rounded-xl" />}
+          >
+            {(data) => <GoalsCard data={data} onSaved={reloadAnalytics} />}
+          </Section>
+
+          {/* ---- section backed by /api/dashboard/habits (loads separately) ---- */}
+          <Section
+            state={habits}
+            skeleton={<Skeleton className="h-56 w-full rounded-xl" />}
+          >
+            {(data) => <HabitsCard habits={data} />}
+          </Section>
+
+          <Section
+            state={analytics}
+            hideError
+            skeleton={<Skeleton className="h-52 w-full rounded-xl" />}
+          >
+            {(data) => <TrendCard data={data} />}
+          </Section>
+        </div>
       </div>
     </main>
   );

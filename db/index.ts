@@ -1,26 +1,37 @@
-import { drizzle } from "drizzle-orm/postgres-js";
+import { PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+
 import * as schema from "./schema";
 
-function createDb(connectionString: string) {
-  const client = postgres(connectionString, { prepare: false, max: 1 });
-  return drizzle({ client, schema });
-}
+// cached instances to avoid reconnecting on every call
+let client: ReturnType<typeof postgres> | null = null;
+let db: PostgresJsDatabase<typeof schema> | null = null;
 
-export type Database = ReturnType<typeof createDb>;
+export function getDb() {
+  // reuse existing db instance
+  if (db) return db;
 
-// Global cache for Next.js hot reload
-declare global {
-  var _drizzleDb: { connectionString: string; db: Database } | undefined;
-}
+  const url = process.env.DATABASE_URL;
 
-export function getDb(): Database {
-  const connectionString =  process.env.DATABASE_URL || 'postgresql://postgres.bvjmpxtyajbqlyrsllnn:Nikhilsai0146@aws-0-ap-south-1.pooler.supabase.com:6543/postgres';
-  if (!connectionString) throw new Error("DATABASE_URL is required to connect to PostgreSQL.");
-
-  if (!globalThis._drizzleDb || globalThis._drizzleDb.connectionString !== connectionString) {
-    globalThis._drizzleDb = { connectionString, db: createDb(connectionString) };
+  // fail fast if env is missing
+  if (!url) {
+    throw new Error("DATABASE_URL is not set");
   }
 
-  return globalThis._drizzleDb.db;
+  try {
+    // create postgres client (single connection)
+    client = postgres(url, {
+      prepare: false,
+      max: 1, // prevent connection explosion (serverless safe)
+    });
+
+    // initialize drizzle with schema
+    db = drizzle(client, { schema });
+
+    return db;
+  } catch (err) {
+    // log once and rethrow
+    console.error("[db] failed to connect", err);
+    throw err;
+  }
 }

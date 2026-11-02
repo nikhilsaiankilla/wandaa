@@ -1,3 +1,4 @@
+// app/api/dashboard/analytics/route.ts
 import { and, asc, eq, gte, lt, lte, ne, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { dailyLogs, goals, habitEntries, habits, tasks } from "@/db/schema";
@@ -5,81 +6,47 @@ import {
   SLEEP_GOOD,
   SLEEP_POOR,
   SLEEP_TARGET,
-  type CellState,
   type DashboardAnalytics,
   type DashboardRange,
   type GoalItem,
-  type HabitGrid,
   type ScoreComponent,
   type SleepSection,
   type SleepStatus,
   type TaskItem,
   type Verdict,
 } from "@/lib/types";
+import {
+  addDays,
+  avg,
+  clamp,
+  createTimer,
+  dateLabel,
+  dayKey,
+  dayStart,
+  fmtHours,
+  keysBetween,
+  round,
+  round2,
+  weekdayLabel,
+  type Win,
+} from "@/lib/dashboard-utils";
 
-// date helpers (everything is bucketed in the owner's timezone)
-const TZ = "Asia/Kolkata";
-const TZ_OFFSET = "+05:30"; // India has no DST
-const dayFmt = new Intl.DateTimeFormat("en-CA", {
-  timeZone: TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+// Everything except the 365-day habit grid (that lives in /api/dashboard/habits).
+type AnalyticsPayload = Omit<DashboardAnalytics, "habits">;
 
-const dayKey = (d: Date) => dayFmt.format(d);
-
-function addDays(key: string, n: number) {
-  const d = new Date(`${key}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-const dayStart = (key: string) => new Date(`${key}T00:00:00${TZ_OFFSET}`);
-
-function keysBetween(start: string, end: string) {
-  const keys: string[] = [];
-  for (let k = start; k <= end; k = addDays(k, 1)) keys.push(k);
-  return keys;
-}
-
-const weekdayLabel = (key: string) =>
-  new Date(`${key}T00:00:00Z`).toLocaleDateString("en", {
-    weekday: "short",
-    timeZone: "UTC",
-  });
-
-const dateLabel = (key: string) =>
-  new Date(`${key}T00:00:00Z`).toLocaleDateString("en", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-
-const avg = (values: number[]) =>
-  values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-
-const round = (n: number, digits = 1) => {
-  const f = 10 ** digits;
-  return Math.round(n * f) / f;
-};
-
-const clamp = (n: number) => Math.max(0, Math.min(100, n));
-
-const fmtHours = (h: number) => {
-  const minutes = Math.round(h * 60);
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-};
-
-type Win = { start: string; end: string };
+// The weekly score only needs a couple of weeks of habit entries. 30 days also
+// covers the streak insight (shown as "30+" if it hits the cap).
+const HABIT_WINDOW = 30;
 
 // ---------- main entry ----------
 
-export async function getDashboardAnalytics(
+async function getAnalytics(
   range: DashboardRange,
   now = new Date(),
-): Promise<DashboardAnalytics> {
+): Promise<AnalyticsPayload> {
+  const timer = createTimer(`analytics:${range}`);
   const db = getDb();
+  timer.mark("getDb()");
   const days = range === "30d" ? 30 : 7;
 
   const today = dayKey(now);
@@ -87,83 +54,107 @@ export async function getDashboardAnalytics(
   const thisWeek: Win = { start: addDays(today, -6), end: today };
   const lastWeek: Win = { start: addDays(today, -13), end: addDays(today, -7) };
 
-  const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const monday = addDays(today, -((dow + 6) % 7));
-  const gridStart = addDays(monday, -364); // 53 week columns, current week last
-
   const logsStart = addDays(today, -(2 * days - 1));
+  const habitStart = addDays(today, -(HABIT_WINDOW - 1));
 
   const [logRows, taskRows, taskListRows, goalRows, habitRows, entryRows] =
-    await Promise.all([
-      db
-        .select({
-          day: dailyLogs.day,
-          sleepHours: dailyLogs.sleepHours,
-          energy: dailyLogs.energy,
-        })
-        .from(dailyLogs)
-        .where(and(gte(dailyLogs.day, logsStart), lte(dailyLogs.day, today)))
-        .orderBy(asc(dailyLogs.day)),
-      db
-        .select({
-          status: tasks.status,
-          dueDate: tasks.dueDate,
-          completedAt: tasks.completedAt,
-        })
-        .from(tasks)
-        .where(
-          and(
-            ne(tasks.status, "dropped"),
-            or(
+    await timer.wrap("queries (total)", () =>
+      Promise.all([
+        timer.wrap("q1 dailyLogs", () =>
+          db
+            .select({
+              day: dailyLogs.day,
+              sleepHours: dailyLogs.sleepHours,
+              energy: dailyLogs.energy,
+            })
+            .from(dailyLogs)
+            .where(
+              and(gte(dailyLogs.day, logsStart), lte(dailyLogs.day, today)),
+            )
+            .orderBy(asc(dailyLogs.day)),
+        ),
+        timer.wrap("q2 tasks (stats)", () =>
+          db
+            .select({
+              status: tasks.status,
+              dueDate: tasks.dueDate,
+              completedAt: tasks.completedAt,
+            })
+            .from(tasks)
+            .where(
               and(
-                gte(tasks.dueDate, lastWeek.start),
-                lte(tasks.dueDate, today),
+                ne(tasks.status, "dropped"),
+                or(
+                  and(
+                    gte(tasks.dueDate, lastWeek.start),
+                    lte(tasks.dueDate, today),
+                  ),
+                  gte(tasks.completedAt, dayStart(lastWeek.start)),
+                ),
               ),
-              gte(tasks.completedAt, dayStart(lastWeek.start)),
             ),
-          ),
         ),
-      db
-        .select()
-        .from(tasks)
-        .where(
-          or(
-            eq(tasks.status, "open"),
-            and(
-              eq(tasks.status, "done"),
-              gte(tasks.completedAt, dayStart(today)),
-              lt(tasks.completedAt, dayStart(tomorrow)),
+        timer.wrap("q3 tasks (list)", () =>
+          db
+            .select()
+            .from(tasks)
+            .where(
+              or(
+                eq(tasks.status, "open"),
+                and(
+                  eq(tasks.status, "done"),
+                  gte(tasks.completedAt, dayStart(today)),
+                  lt(tasks.completedAt, dayStart(tomorrow)),
+                ),
+              ),
+            )
+            .limit(200),
+        ),
+        timer.wrap("q4 goals", () =>
+          db
+            .select({
+              id: goals.id,
+              title: goals.title,
+              unit: goals.unit,
+              targetValue: goals.targetValue,
+              currentValue: goals.currentValue,
+              endsOn: goals.endsOn,
+              status: goals.status,
+            })
+            .from(goals)
+            .orderBy(asc(goals.createdAt)),
+        ),
+        timer.wrap("q5 habits", () =>
+          db
+            .select()
+            .from(habits)
+            .where(eq(habits.active, true))
+            .orderBy(asc(habits.id)),
+        ),
+        timer.wrap(`q6 habitEntries (${HABIT_WINDOW}d)`, () =>
+          db
+            .select({ habitId: habitEntries.habitId, day: habitEntries.day })
+            .from(habitEntries)
+            .where(
+              and(
+                gte(habitEntries.day, habitStart),
+                lte(habitEntries.day, today),
+                eq(habitEntries.completed, true),
+              ),
             ),
-          ),
         ),
-      db
-        .select({
-          id: goals.id,
-          title: goals.title,
-          unit: goals.unit,
-          targetValue: goals.targetValue,
-          currentValue: goals.currentValue,
-          endsOn: goals.endsOn,
-          status: goals.status,
-        })
-        .from(goals)
-        .orderBy(asc(goals.createdAt)),
-      db
-        .select()
-        .from(habits)
-        .where(eq(habits.active, true))
-        .orderBy(asc(habits.id)),
-      db
-        .select({ habitId: habitEntries.habitId, day: habitEntries.day })
-        .from(habitEntries)
-        .where(
-          and(
-            gte(habitEntries.day, gridStart),
-            lte(habitEntries.day, today),
-            eq(habitEntries.completed, true),
-          ),
-        ),
-    ]);
+      ]),
+    );
+
+  console.log("[timing] analytics row counts", {
+    logs: logRows.length,
+    taskStats: taskRows.length,
+    taskList: taskListRows.length,
+    goals: goalRows.length,
+    habits: habitRows.length,
+    entries: entryRows.length,
+  });
+  timer.mark("after DB (row counts)");
 
   // ----- today's tasks -----
   const rank = { high: 0, normal: 1, low: 2 } as const;
@@ -192,11 +183,11 @@ export async function getDashboardAnalytics(
   );
   const goalList: GoalItem[] = goalRows.map((goal) => ({
     ...goal,
-    targetValue:
-      goal.targetValue === null ? null : Number(goal.targetValue),
+    targetValue: goal.targetValue === null ? null : Number(goal.targetValue),
     currentValue: Number(goal.currentValue),
   }));
   const doneToday = todayTasks.filter((t) => t.status === "done").length;
+  timer.mark("compute: today's tasks");
 
   // ----- task stats per window -----
   const taskWindow = (w: Win) => {
@@ -221,6 +212,7 @@ export async function getDashboardAnalytics(
         t.status === "done" && t.completedAt && dayKey(t.completedAt) === key,
     ).length,
   }));
+  timer.mark("compute: task stats + trend");
 
   // ----- logs per window -----
   const logWindow = (w: Win) => {
@@ -237,7 +229,7 @@ export async function getDashboardAnalytics(
     };
   };
 
-  // ----- habits -----
+  // ----- habits (lightweight: only what the score + insights need) -----
   const entryDays = new Map<number, Set<string>>();
   for (const e of entryRows) {
     const set = entryDays.get(e.habitId) ?? new Set<string>();
@@ -247,42 +239,19 @@ export async function getDashboardAnalytics(
   const countIn = (set: Set<string>, w: Win) =>
     keysBetween(w.start, w.end).filter((k) => set.has(k)).length;
 
-  const habitGrids: HabitGrid[] = habitRows.map((h) => {
+  const habitStats = habitRows.map((h) => {
     const set = entryDays.get(h.id) ?? new Set<string>();
-
-    const weeks: CellState[][] = [];
-    let weeksHit = 0;
-    for (let w = 0; w < 53; w++) {
-      const col: CellState[] = [];
-      let done = 0;
-      for (let d = 0; d < 7; d++) {
-        const key = addDays(gridStart, w * 7 + d);
-        if (key > today) col.push(2);
-        else if (set.has(key)) {
-          col.push(1);
-          done++;
-        } else col.push(0);
-      }
-      weeks.push(col);
-      if (w < 52 && done >= h.targetPerWeek) weeksHit++;
-    }
-
     let streak = 0;
     let cursor = set.has(today) ? today : addDays(today, -1);
     while (set.has(cursor)) {
       streak++;
       cursor = addDays(cursor, -1);
     }
-
     return {
-      id: h.id,
       name: h.name,
       targetPerWeek: h.targetPerWeek,
       doneLast7: countIn(set, thisWeek),
       streak,
-      weeksHit,
-      weeksTotal: 52,
-      weeks,
     };
   });
 
@@ -298,6 +267,7 @@ export async function getDashboardAnalytics(
           0,
         ) / habitRows.length
       : null;
+  timer.mark("compute: habit stats");
 
   // ----- sleep section (follows the selected range) -----
   const rangeKeys = keysBetween(addDays(today, -(days - 1)), today);
@@ -376,6 +346,7 @@ export async function getDashboardAnalytics(
     energyAfterGoodSleep: round2(energyFor((h) => h >= SLEEP_GOOD)),
     energyAfterShortSleep: round2(energyFor((h) => h < SLEEP_GOOD)),
   };
+  timer.mark("compute: sleep section");
 
   // ----- weekly verdict -----
   const weekLogs = logWindow(thisWeek);
@@ -392,7 +363,7 @@ export async function getDashboardAnalytics(
     taskTotal: weekTasks.total,
     habitAdherence: weekHabits,
     habitCount: habitRows.length,
-    habitsOnPace: habitGrids.filter((h) => h.doneLast7 >= h.targetPerWeek)
+    habitsOnPace: habitStats.filter((h) => h.doneLast7 >= h.targetPerWeek)
       .length,
     energy: weekLogs.energy,
   });
@@ -427,17 +398,21 @@ export async function getDashboardAnalytics(
     insights.push(
       `${overdue} overdue task${overdue > 1 ? "s" : ""} waiting. Clear those first.`,
     );
-  const weakest = [...habitGrids].sort(
+  const weakest = [...habitStats].sort(
     (a, b) => a.doneLast7 / a.targetPerWeek - b.doneLast7 / b.targetPerWeek,
   )[0];
   if (weakest && weakest.doneLast7 < weakest.targetPerWeek)
     insights.push(
       `${weakest.name}: ${weakest.doneLast7} of ${weakest.targetPerWeek} this week, the furthest from target.`,
     );
-  const bestStreak = [...habitGrids].sort((a, b) => b.streak - a.streak)[0];
+  const bestStreak = [...habitStats].sort((a, b) => b.streak - a.streak)[0];
   if (bestStreak && bestStreak.streak >= 3)
     insights.push(
-      `${bestStreak.name} streak: ${bestStreak.streak} days running.`,
+      `${bestStreak.name} streak: ${
+        bestStreak.streak >= HABIT_WINDOW - 1
+          ? `${bestStreak.streak}+`
+          : bestStreak.streak
+      } days running.`,
     );
   if (
     sleep.energyAfterGoodSleep !== null &&
@@ -455,6 +430,12 @@ export async function getDashboardAnalytics(
     insights.slice(0, 4),
   );
 
+  timer.mark("compute: verdict + insights");
+  console.log(
+    `[timing] analytics:${range} TOTAL ${timer.total()}ms`,
+    timer.steps(),
+  );
+
   return {
     generatedAt: now.toISOString(),
     range,
@@ -470,13 +451,8 @@ export async function getDashboardAnalytics(
       total: todayTasks.length,
     },
     sleep,
-    habits: { gridStart, today, habits: habitGrids },
     taskTrend,
   };
-}
-
-function round2(n: number | null) {
-  return n === null ? null : round(n, 1);
 }
 
 // ---------- scoring ----------
@@ -604,16 +580,39 @@ function buildVerdict(
   };
 }
 
+// ---------- route handler ----------
+
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function GET(request: Request) {
+  const reqStart = performance.now();
   const value = new URL(request.url).searchParams.get("range");
   const range: DashboardRange = value === "30d" ? "30d" : "7d";
+  console.log(`[timing] GET /api/dashboard/analytics range=${range} received`);
+
   try {
-    return Response.json(await getDashboardAnalytics(range), { headers });
+    const data = await getAnalytics(range);
+    const t1 = performance.now();
+    const body = JSON.stringify(data);
+    const t2 = performance.now();
+
+    const total = Math.round(t2 - reqStart);
+    console.log(
+      `[timing] GET /api/dashboard/analytics done: queries+compute ${Math.round(t1 - reqStart)}ms, ` +
+        `serialize ${Math.round(t2 - t1)}ms (${(body.length / 1024).toFixed(1)} KB), total ${total}ms`,
+    );
+
+    return new Response(body, {
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        "Server-Timing": `total;dur=${total}`,
+      },
+    });
   } catch (error) {
     console.error("Dashboard analytics failed", {
       reason: error instanceof Error ? error.message : "UnknownError",
+      afterMs: Math.round(performance.now() - reqStart),
     });
     return Response.json(
       { error: "Could not load dashboard data." },
