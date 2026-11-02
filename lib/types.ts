@@ -27,7 +27,7 @@ export type Verdict = {
   insights: string[];
 };
 
-export type TodayTask = {
+export type TaskItem = {
   id: number;
   text: string;
   status: "open" | "done";
@@ -40,7 +40,7 @@ export type TodayTask = {
 
 export type TodaySection = {
   date: string;
-  tasks: TodayTask[];
+  tasks: TaskItem[];
   done: number;
   open: number;
   overdue: number;
@@ -103,6 +103,7 @@ export type DashboardAnalytics = {
   generatedAt: string;
   range: DashboardRange;
   verdict: Verdict;
+  tasks: TaskItem[];
   today: TodaySection;
   sleep: SleepSection;
   habits: HabitsSection;

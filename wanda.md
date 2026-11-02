@@ -146,3 +146,22 @@ Invoke-RestMethod `
     -Method Post `
     -ContentType "application/json" `
     -Body $body
+
+
+<!-- prod  -->
+
+$BOT_TOKEN = "9278505207:AAEB7-leZofHP9TLI3x3S6wQw_w9Ns71N4Q"
+$WEBHOOK_SECRET = "AAEB7-leZofHP9TLI3x3S6wQw_w9Ns71N4Q"
+$NGROK_URL = "https://wandaa-three.vercel.app"
+
+$body = @{
+    url = "$NGROK_URL/api/telegram/webhook"
+    secret_token = $WEBHOOK_SECRET
+    allowed_updates = @("message")
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+    -Uri "https://api.telegram.org/bot$($BOT_TOKEN)/setWebhook" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body

@@ -12,7 +12,7 @@ import {
   type ScoreComponent,
   type SleepSection,
   type SleepStatus,
-  type TodayTask,
+  type TaskItem,
   type Verdict,
 } from "@/lib/types";
 
@@ -92,7 +92,7 @@ export async function getDashboardAnalytics(
 
   const logsStart = addDays(today, -(2 * days - 1));
 
-  const [logRows, taskRows, todayRows, habitRows, entryRows] =
+  const [logRows, taskRows, taskListRows, habitRows, entryRows] =
     await Promise.all([
       db
         .select({
@@ -127,15 +127,14 @@ export async function getDashboardAnalytics(
         .from(tasks)
         .where(
           or(
-            and(eq(tasks.status, "open"), lte(tasks.dueDate, today)),
+            eq(tasks.status, "open"),
             and(
               eq(tasks.status, "done"),
               gte(tasks.completedAt, dayStart(today)),
               lt(tasks.completedAt, dayStart(tomorrow)),
             ),
           ),
-        )
-        .limit(100),
+        ),
       db
         .select()
         .from(habits)
@@ -155,7 +154,7 @@ export async function getDashboardAnalytics(
 
   // ----- today's tasks -----
   const rank = { high: 0, normal: 1, low: 2 } as const;
-  const todayTasks: TodayTask[] = todayRows
+  const taskList: TaskItem[] = taskListRows
     .map((t) => ({
       id: t.id,
       text: t.text,
@@ -173,6 +172,11 @@ export async function getDashboardAnalytics(
         rank[a.priority] - rank[b.priority] ||
         a.id - b.id,
     );
+  const todayTasks = taskList.filter(
+    (task) =>
+      (task.status === "open" && !!task.dueDate && task.dueDate <= today) ||
+      task.status === "done",
+  );
   const doneToday = todayTasks.filter((t) => t.status === "done").length;
 
   // ----- task stats per window -----
@@ -436,6 +440,7 @@ export async function getDashboardAnalytics(
     generatedAt: now.toISOString(),
     range,
     verdict,
+    tasks: taskList,
     today: {
       date: today,
       tasks: todayTasks,

@@ -50,7 +50,7 @@ import type {
   DashboardRange,
   HabitGrid,
   SleepStatus,
-  TodayTask,
+  TaskItem,
   VerdictTone,
 } from "@/lib/types";
 
@@ -167,15 +167,15 @@ function VerdictCard({ data }: { data: DashboardAnalytics }) {
   );
 }
 
-// ---------- today's tasks ----------
+// ---------- tasks ----------
 
-const priorityStyle: Record<TodayTask["priority"], string> = {
+const priorityStyle: Record<TaskItem["priority"], string> = {
   high: toneStyles.bad,
   normal: "bg-muted text-muted-foreground",
   low: "bg-muted text-muted-foreground",
 };
 
-function TaskRow({ task }: { task: TodayTask }) {
+function TaskRow({ task }: { task: TaskItem }) {
   const done = task.status === "done";
   const Icon = done ? CheckCircle2 : task.overdue ? AlertCircle : Circle;
   const iconStyle = done
@@ -202,34 +202,61 @@ function TaskRow({ task }: { task: TodayTask }) {
           </p>
         )}
       </div>
-      {task.priority !== "normal" && (
+      <div className="flex shrink-0 flex-wrap justify-end gap-1">
         <Badge
           variant="secondary"
-          className={`border-0 ${priorityStyle[task.priority]}`}
+          className={`border-0 ${done ? "bg-muted text-muted-foreground" : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"}`}
         >
-          {task.priority}
+          {done ? "Done" : "Pending"}
         </Badge>
-      )}
+        {task.priority !== "normal" && (
+          <Badge
+            variant="secondary"
+            className={`border-0 ${priorityStyle[task.priority]}`}
+          >
+            {task.priority}
+          </Badge>
+        )}
+      </div>
     </li>
   );
 }
 
-function TodayCard({ data }: { data: DashboardAnalytics }) {
+type TaskFilter = "all" | "pending" | "done";
+
+const taskFilters: { value: TaskFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "done", label: "Done today" },
+];
+
+function TasksCard({ data }: { data: DashboardAnalytics }) {
   const { today } = data;
+  const [filter, setFilter] = useState<TaskFilter>("all");
   const pct = today.total ? Math.round((today.done / today.total) * 100) : 0;
+  const filteredTasks = data.tasks.filter(
+    (task) =>
+      filter === "all" ||
+      task.status === (filter === "pending" ? "open" : "done"),
+  );
+  const filterCounts: Record<TaskFilter, number> = {
+    all: data.tasks.length,
+    pending: data.tasks.filter((task) => task.status === "open").length,
+    done: data.tasks.filter((task) => task.status === "done").length,
+  };
   return (
     <Card className="flex flex-col">
       <CardHeader>
-        <CardTitle>Today&apos;s tasks</CardTitle>
+        <CardTitle>Tasks</CardTitle>
         <CardDescription>
-          Due today, overdue, and finished today
+          All pending tasks and tasks completed today
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col space-y-4">
         <div className="flex items-center gap-4">
           <Progress value={pct} className="h-2 flex-1" />
           <span className="text-sm tabular-nums text-muted-foreground">
-            {today.done}/{today.total} done
+            Today: {today.done}/{today.total} done
           </span>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
@@ -241,17 +268,35 @@ function TodayCard({ data }: { data: DashboardAnalytics }) {
             </Badge>
           )}
         </div>
-        {today.tasks.length ? (
+        <div className="flex flex-wrap gap-2" aria-label="Filter tasks by status">
+          {taskFilters.map(({ value, label }) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={filter === value ? "secondary" : "ghost"}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {label} ({filterCounts[value]})
+            </Button>
+          ))}
+        </div>
+        {filteredTasks.length ? (
           <div className="max-h-[360px] overflow-y-auto pr-1">
             <ul className="divide-y">
-              {today.tasks.map((t) => (
+              {filteredTasks.map((t) => (
                 <TaskRow key={t.id} task={t} />
               ))}
             </ul>
           </div>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            Nothing due today. A clear slate.
+            {filter === "done"
+              ? "No tasks completed today."
+              : filter === "pending"
+                ? "No pending tasks."
+                : "No tasks to show."}
           </p>
         )}
       </CardContent>
@@ -700,7 +745,7 @@ export default function DashboardClient() {
           >
             <VerdictCard data={data} />
             <div className="grid items-start gap-4 lg:grid-cols-2">
-              <TodayCard data={data} />
+              <TasksCard data={data} />
               <SleepCard data={data} />
             </div>
             <HabitsCard data={data} />
