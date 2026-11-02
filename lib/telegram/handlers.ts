@@ -90,8 +90,9 @@ function help(): string {
     "Reminders and goals",
     "/remind <text> | in 30m   or   | YYYY-MM-DD HH:mm",
     "/reminders, /cancel <reminder id>",
-    "/goals, /goal add <title> | <target> | <unit>",
-    "/goal set <id> <value>, /goal done <id>, /goal drop <id>",
+    "/goals",
+    "/goal add <title> | <target price> | <currency> [| YYYY-MM-DD]",
+    "/goal set <id> <amount reached>, /goal done <id>, /goal drop <id>",
     "",
     "Capture",
     "/idea <text>, /link <url>, /note <text>",
@@ -444,6 +445,7 @@ async function listGoals(): Promise<MessageResult> {
       unit: goals.unit,
       targetValue: goals.targetValue,
       currentValue: goals.currentValue,
+      endsOn: goals.endsOn,
     })
     .from(goals)
     .where(eq(goals.status, "active"))
@@ -452,15 +454,23 @@ async function listGoals(): Promise<MessageResult> {
 
   if (!rows.length)
     return {
-      text: "No active goals. Add one with /goal add <title> | <target> | <unit>.",
+      text: "No active goals. Add one with /goal add <title> | <target price> | <currency> [| YYYY-MM-DD].",
     };
   return {
     text: rows
       .map((goal) => {
-        const progress = goal.targetValue
-          ? `${goal.currentValue}/${goal.targetValue}`
-          : goal.currentValue;
-        return `#${goal.id} ${goal.title.slice(0, 100)} — ${progress}${goal.unit ? ` ${goal.unit}` : ""}`;
+        const current = Number(goal.currentValue);
+        const target =
+          goal.targetValue === null ? null : Number(goal.targetValue);
+        const progress =
+          target !== null && target > 0
+            ? Math.min(100, Math.round((current / target) * 100))
+            : 0;
+        const amount =
+          target === null
+            ? `${current}${goal.unit ? ` ${goal.unit}` : ""}`
+            : `${current}/${target}${goal.unit ? ` ${goal.unit}` : ""} (${progress}%)`;
+        return `#${goal.id} ${goal.title.slice(0, 100)} — ${amount}${goal.endsOn ? ` · by ${goal.endsOn}` : ""}`;
       })
       .join("\n"),
   };
@@ -470,22 +480,31 @@ async function handleGoal(input: string): Promise<MessageResult> {
   const trimmed = input.trim();
 
   const add =
-    /^add\s+([^|]+)\|\s*(\d{1,12}(?:\.\d{1,2})?)\s*(?:\|\s*(.+))?$/i.exec(
+    /^add\s+([^|]+)\|\s*(\d{1,12}(?:\.\d{1,2})?)\s*\|\s*([^|]+?)(?:\s*\|\s*(\d{4}-\d{2}-\d{2}))?$/i.exec(
       trimmed,
     );
   if (add) {
     const title = add[1].trim();
-    const unit = add[3]?.trim() || null;
-    if (!title || title.length > 200 || (unit && unit.length > 30)) {
+    const unit = add[3].trim();
+    const endsOn = add[4]?.trim() || null;
+    if (
+      !title ||
+      title.length > 200 ||
+      !unit ||
+      unit.length > 30 ||
+      (endsOn !== null && !isRealDate(endsOn))
+    ) {
       return {
-        text: "Use /goal add <title up to 200 chars> | <target number> | <unit>.",
+        text: "Use /goal add <title> | <target price> | <currency> [| YYYY-MM-DD].",
       };
     }
     const [created] = await getDb()
       .insert(goals)
-      .values({ title, targetValue: add[2], unit })
+      .values({ title, targetValue: add[2], unit, endsOn })
       .returning({ id: goals.id });
-    return { text: `Added goal #${created.id}: ${title}` };
+    return {
+      text: `Added goal #${created.id}: ${title} — target ${add[2]} ${unit}${endsOn ? ` by ${endsOn}` : ""}. Update progress with /goal set ${created.id} <amount reached>.`,
+    };
   }
 
   const set = /^set\s+(\d+)\s+(\d{1,12}(?:\.\d{1,2})?)$/i.exec(trimmed);
@@ -499,7 +518,7 @@ async function handleGoal(input: string): Promise<MessageResult> {
       .returning({ id: goals.id });
     return {
       text: updated
-        ? `Updated goal #${id} to ${set[2]}.`
+        ? `Updated goal #${id}: amount reached is now ${set[2]}.`
         : "Active goal not found.",
     };
   }
@@ -523,7 +542,7 @@ async function handleGoal(input: string): Promise<MessageResult> {
   }
 
   return {
-    text: "Use /goals, /goal add <title> | <target> | <unit>, /goal set <id> <value>, /goal done <id>, or /goal drop <id>.",
+    text: "Use /goals, /goal add <title> | <target price> | <currency> [| YYYY-MM-DD], /goal set <id> <amount reached>, /goal done <id>, or /goal drop <id>.",
   };
 }
 

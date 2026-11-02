@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
+  CalendarDays,
   CheckCircle2,
   Circle,
   Flame,
   Minus,
   Moon,
+  Plus,
   RefreshCw,
+  Target,
 } from "lucide-react";
 import {
   Bar,
@@ -48,6 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type {
   DashboardAnalytics,
   DashboardRange,
+  GoalItem,
   HabitGrid,
   SleepStatus,
   TaskItem,
@@ -219,6 +223,257 @@ function TaskRow({ task }: { task: TaskItem }) {
         )}
       </div>
     </li>
+  );
+}
+
+async function submitGoal(
+  body: Record<string, string | number>,
+  method: "POST" | "PATCH",
+) {
+  const response = await fetch("/api/dashboard/goals", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+    throw new Error(result?.error ?? "Could not save goal.");
+  }
+}
+
+function GoalForm({ onSaved }: { onSaved: () => void }) {
+  const [title, setTitle] = useState("");
+  const [targetValue, setTargetValue] = useState("");
+  const [unit, setUnit] = useState("INR");
+  const [endsOn, setEndsOn] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function createGoal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await submitGoal(
+        { title, targetValue: Number(targetValue), unit, endsOn },
+        "POST",
+      );
+      setTitle("");
+      setTargetValue("");
+      setEndsOn("");
+      onSaved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not save goal.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={createGoal} className="space-y-3 rounded-lg border p-4">
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <Plus className="size-4" />
+        Add a price goal
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
+          What are you saving for?
+          <input
+            required
+            maxLength={200}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Buy Mac"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-muted-foreground">
+          Target price
+          <input
+            required
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={targetValue}
+            onChange={(event) => setTargetValue(event.target.value)}
+            placeholder="150000"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-muted-foreground">
+          Currency
+          <input
+            required
+            maxLength={30}
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+            placeholder="INR"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
+          Target date (optional)
+          <input
+            type="date"
+            value={endsOn}
+            onChange={(event) => setEndsOn(event.target.value)}
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+          />
+        </label>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button type="submit" size="sm" disabled={saving} className="gap-1.5">
+        <Plus className="size-4" />
+        {saving ? "Adding…" : "Add goal"}
+      </Button>
+    </form>
+  );
+}
+
+function GoalRow({
+  goal,
+  onSaved,
+}: {
+  goal: GoalItem;
+  onSaved: () => void;
+}) {
+  const [currentValue, setCurrentValue] = useState(String(goal.currentValue));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const progress =
+    goal.targetValue && goal.targetValue > 0
+      ? Math.min(100, Math.round((goal.currentValue / goal.targetValue) * 100))
+      : 0;
+  const active = goal.status === "active";
+
+  async function updateGoal(progress?: string, status?: "achieved") {
+    setSaving(true);
+    setError(null);
+    try {
+      await submitGoal(
+        {
+          id: goal.id,
+          ...(status ? { status } : { currentValue: Number(progress) }),
+        },
+        "PATCH",
+      );
+      onSaved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update goal.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="space-y-3 py-4 first:pt-0 last:pb-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-medium">{goal.title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {goal.targetValue !== null
+              ? `${goal.currentValue.toLocaleString()} / ${goal.targetValue.toLocaleString()} ${goal.unit ?? ""} · ${progress}%`
+              : "No target price set"}
+          </p>
+          {goal.endsOn && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <CalendarDays className="size-3.5" />
+              Target date: {goal.endsOn}
+            </p>
+          )}
+        </div>
+        <Badge
+          variant="secondary"
+          className={
+            goal.status === "achieved"
+              ? `border-0 ${toneStyles.great}`
+              : goal.status === "abandoned"
+                ? `border-0 ${toneStyles.empty}`
+                : "border-0 bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+          }
+        >
+          {goal.status}
+        </Badge>
+      </div>
+      {goal.targetValue !== null && <Progress value={progress} className="h-2" />}
+      {active && goal.targetValue !== null && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void updateGoal(currentValue);
+          }}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <label className="min-w-40 flex-1 space-y-1 text-xs text-muted-foreground">
+            Amount reached ({goal.unit})
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.01"
+              value={currentValue}
+              onChange={(event) => setCurrentValue(event.target.value)}
+              className="h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+            />
+          </label>
+          <Button type="submit" size="sm" variant="outline" disabled={saving}>
+            {saving ? "Saving…" : "Update"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => void updateGoal(undefined, "achieved")}
+          >
+            Mark achieved
+          </Button>
+        </form>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </li>
+  );
+}
+
+function GoalsCard({
+  data,
+  onSaved,
+}: {
+  data: DashboardAnalytics;
+  onSaved: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="size-5" />
+          Goals
+        </CardTitle>
+        <CardDescription>
+          Track the amount reached toward each target price.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <GoalForm onSaved={onSaved} />
+        {data.goals.length ? (
+          <ul className="divide-y">
+            {data.goals.map((goal) => (
+              <GoalRow
+                key={`${goal.id}-${goal.currentValue}-${goal.status}`}
+                goal={goal}
+                onSaved={onSaved}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="py-2 text-center text-sm text-muted-foreground">
+            No goals yet. Add one above to start tracking progress.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -748,6 +1003,7 @@ export default function DashboardClient() {
               <TasksCard data={data} />
               <SleepCard data={data} />
             </div>
+            <GoalsCard data={data} onSaved={reload} />
             <HabitsCard data={data} />
             <TrendCard data={data} />
           </div>

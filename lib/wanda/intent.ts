@@ -50,10 +50,11 @@ const SYSTEM = `You turn the owner's Telegram message into 1 to ${MAX_ACTIONS} a
 Rules:
 - The argument is exactly what would follow the slash command, in the format shown below. Use an empty string when the action takes no argument.
 - One message can contain several actions, for example a daily update, a sleep entry and a request for a post.
-- Resolve relative dates such as "tomorrow" or "next Friday" to real dates using today's date below. Task dates are YYYY-MM-DD. Reminder times are either "in 30m" style or "YYYY-MM-DD HH:mm" in 24-hour local time.
+- Resolve relative dates such as "tomorrow" or "next Friday" to real dates using today's date below. Task and goal dates are YYYY-MM-DD. Reminder times are either "in 30m" style or "YYYY-MM-DD HH:mm" in 24-hour local time.
 - Refer to existing items only by ids that appear in the lists below. If the owner refers to an item you cannot match to a listed id, use chat instead.
 - Use log for past-tense updates about what the owner did today. Keep their wording and do not embellish.
 - Use chat for questions or conversation about their own data or plans. The argument is the question as asked.
+- For a savings update, use goal set with the goal id and the new total amount reached (not an amount to add). For a new savings goal, require its target price and currency; include a deadline only if the owner gave one.
 - Use tweet when they ask you to write or draft a post. The argument is the topic or instruction, or empty to base it on today.
 - Use draft only when they dictate the exact post text.
 - Never invent text, ids, numbers or dates. If unsure, use unknown with an empty argument.
@@ -67,7 +68,7 @@ sleep: "<hours>" or "<hours> <energy 1-5>"
 habit: "add <name>" or "done <habit id>" or "archive <habit id>"
 remind: "<text> | in 30m" or "<text> | YYYY-MM-DD HH:mm"
 cancel: "<reminder id>"
-goal: "add <title> | <target number> | <unit>" or "set <goal id> <value>" or "done <goal id>" or "drop <goal id>"
+goal: "add <title> | <target price> | <currency> [| YYYY-MM-DD]" or "set <goal id> <amount reached>" or "done <goal id>" or "drop <goal id>"
 idea, note: "<text>"
 link: "<url>"
 inbox: empty, or "done <inbox id>"

@@ -319,7 +319,14 @@ export async function intentSnapshot() {
         .from(habits)
         .where(eq(habits.active, true)),
       db
-        .select({ id: goals.id, title: goals.title })
+        .select({
+          id: goals.id,
+          title: goals.title,
+          currentValue: goals.currentValue,
+          targetValue: goals.targetValue,
+          unit: goals.unit,
+          endsOn: goals.endsOn,
+        })
         .from(goals)
         .where(eq(goals.status, "active"))
         .limit(15),

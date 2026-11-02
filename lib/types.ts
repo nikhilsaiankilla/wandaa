@@ -47,6 +47,16 @@ export type TodaySection = {
   total: number;
 };
 
+export type GoalItem = {
+  id: number;
+  title: string;
+  unit: string | null;
+  targetValue: number | null;
+  currentValue: number;
+  endsOn: string | null;
+  status: "active" | "achieved" | "abandoned";
+};
+
 export type SleepStatus = "great" | "good" | "low" | "poor" | "none";
 
 export type SleepPoint = {
@@ -104,6 +114,7 @@ export type DashboardAnalytics = {
   range: DashboardRange;
   verdict: Verdict;
   tasks: TaskItem[];
+  goals: GoalItem[];
   today: TodaySection;
   sleep: SleepSection;
   habits: HabitsSection;

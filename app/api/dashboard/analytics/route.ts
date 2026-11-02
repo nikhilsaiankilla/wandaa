@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, lt, lte, ne, or } from "drizzle-orm";
 import { getDb } from "@/db";
-import { dailyLogs, habitEntries, habits, tasks } from "@/db/schema";
+import { dailyLogs, goals, habitEntries, habits, tasks } from "@/db/schema";
 import {
   SLEEP_GOOD,
   SLEEP_POOR,
@@ -8,6 +8,7 @@ import {
   type CellState,
   type DashboardAnalytics,
   type DashboardRange,
+  type GoalItem,
   type HabitGrid,
   type ScoreComponent,
   type SleepSection,
@@ -92,7 +93,7 @@ export async function getDashboardAnalytics(
 
   const logsStart = addDays(today, -(2 * days - 1));
 
-  const [logRows, taskRows, taskListRows, habitRows, entryRows] =
+  const [logRows, taskRows, taskListRows, goalRows, habitRows, entryRows] =
     await Promise.all([
       db
         .select({
@@ -136,6 +137,18 @@ export async function getDashboardAnalytics(
           ),
         ),
       db
+        .select({
+          id: goals.id,
+          title: goals.title,
+          unit: goals.unit,
+          targetValue: goals.targetValue,
+          currentValue: goals.currentValue,
+          endsOn: goals.endsOn,
+          status: goals.status,
+        })
+        .from(goals)
+        .orderBy(asc(goals.createdAt)),
+      db
         .select()
         .from(habits)
         .where(eq(habits.active, true))
@@ -177,6 +190,12 @@ export async function getDashboardAnalytics(
       (task.status === "open" && !!task.dueDate && task.dueDate <= today) ||
       task.status === "done",
   );
+  const goalList: GoalItem[] = goalRows.map((goal) => ({
+    ...goal,
+    targetValue:
+      goal.targetValue === null ? null : Number(goal.targetValue),
+    currentValue: Number(goal.currentValue),
+  }));
   const doneToday = todayTasks.filter((t) => t.status === "done").length;
 
   // ----- task stats per window -----
@@ -441,6 +460,7 @@ export async function getDashboardAnalytics(
     range,
     verdict,
     tasks: taskList,
+    goals: goalList,
     today: {
       date: today,
       tasks: todayTasks,
